@@ -1,0 +1,302 @@
+---
+title: "graphTweets"
+output: html_notebook
+---
+
+
+```{r}
+library(tidyverse)
+library(igraph)
+library(rtweet)
+library(visNetwork)
+library(graphTweets)
+library(ggraph)
+
+```
+
+
+Twitter is a great example of a social network that could be mapped and analyzed with igraph in R. It is possible to simply use rtweet to download tweets, and then orgranize the data to create a network. But it's time-consuming to organize the data into vertices/nodes and edges appropriate for network analysis, so we can use a package called graphTweets to do the dirty work for us.
+
+
+Start by collecting tweets that all use the same hashtag, in this case, #MeToo.
+
+```{r}
+metoo_tweets <- search_tweets("#MeToo", n = 500, include_rts = FALSE)
+```
+
+You may want to look at the data again by clicking on 'metoo_tweets' in the Global Environment pane to familiarize yourself with the data that rtweet provides.
+
+To use graphTweets, you need to get the edges of the network with gt_edges(), and provide he screen_name (the person) and then whatever you want to see what the person is connected to: Let's start with mentions_screen_name(), which will get other people that the first person mentioned. For example, if I'm @matt, and I tweet "@john Hi how are you," that's two nodes with one edge between them.
+
+The following will take our metoo_tweets, grab the edges, and create an igraph network that we're calling metoo_graph. Then it shows a part of the network.
+
+```{r}
+metoo_tweets %>% 
+  gt_edges(screen_name, mentions_screen_name, text) %>% 
+  gt_graph() -> metoo_graph
+
+metoo_graph
+
+```
+
+
+
+Get some info on the network. First, show the nodes (or vertices). This will show all the people who tweeted the #MeToo hastag in our collection.
+
+```{r}
+V(metoo_graph)
+```
+
+Now show the edges. This will show the people who mentioned other people in their tweets.
+
+```{r}
+E(metoo_graph)
+```
+
+
+
+
+
+I like using visNetwork to show big networks like this, because you can zoom in and out, and move around the large network.
+
+```{r}
+visIgraph(metoo_graph) 
+```
+
+
+This adds a size variable to the vertices in the network equal to their degree (# of links). With some trial and error I chose to multiply the degree by 5 to get them the right size.
+```{r}
+V(metoo_graph)$size <- degree(metoo_graph)*5
+```
+
+
+This brings up the text of the tweet when you hover over the edge/link.
+```{r}
+E(metoo_graph)$title <- metoo_tweets$text
+
+```
+
+This only works with directed = F.
+```{r}
+E(metoo_graph)$transparency <- edge_betweenness(metoo_graph, directed = F)
+
+
+```
+
+
+```{r}
+tweets %>% 
+  gt_edges(screen_name, mentions_screen_name, created_at) %>%    #created_at is not necessary, but just adds info 
+  gt_collect() -> edges
+
+edges
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+tweets <- search_tweets("#MeToo", n = 1000, include_rts = FALSE, lang = "en")
+```
+
+
+
+```{r}
+net <- tweets %>% 
+  gt_edges(screen_name, hashtags) %>% 
+  gt_nodes() %>% 
+  gt_collect()
+
+
+tweets %>% 
+  gt_edges(screen_name, mentions_screen_name) %>% 
+  gt_graph() -> net
+
+net
+
+```
+
+
+```{r}
+ggraph(net, layout = "with_kk") + 
+  geom_node_point() +
+  geom_edge_link(alpha = .5) +  # creates the lines, and makes them a little transparent
+  theme_graph()  #  removes the grey background
+
+```
+
+
+
+
+```{r}
+V(net)
+E(net)
+```
+
+```{r}
+V(net)$size <- degree(net)*5
+
+
+visIgraph(net) %>% visIgraphLayout(layout = "layout_with_fr")
+```
+
+
+Rather than getting the network of mentions, we could get a network of retweets.
+
+This gets a network of retweets.
+```{r}
+metoo_retweets <- search_tweets("#MeToo filter:retweets", n = 500, include_rts = TRUE, lang = "en")
+
+```
+
+
+```{r}
+
+metoo_retweets %>% 
+  gt_edges(screen_name, retweet_screen_name) %>% 
+  gt_graph() -> metoo_retweet_network
+
+```
+
+
+```{r}
+
+V(metoo_retweet_network)$size <- degree(metoo_retweet_network)*3
+
+
+
+visIgraph(metoo_retweet_network) %>% 
+  visIgraphLayout(layout = "layout_with_fr")
+```
+
+
+Tweets near Billings
+
+```{r}
+bl_tweets <- search_tweets(geocode = "45.80,-108.55,20mi", n = 500)
+
+```
+
+```{r}
+bl_tweets %>% 
+  gt_edges(screen_name, mentions_screen_name) %>% 
+  gt_graph() -> bl_network
+
+V(bl_twitter_network)
+vcount(bl_twitter_network)
+E(bl_twitter_network)
+ecount(bl_twitter_network)
+
+```
+
+
+```{r}
+visIgraph(bl_network)
+```
+
+
+
+
+
+You also might look at one individual's tweets and get 
+
+We've looked at Trump, so let's look at Obama:
+
+```{r}
+obama_tweets <- get_timeline("BarackObama", n = 1000)
+```
+
+Now make the igraph object, looking at who he mentions in his tweets:
+
+
+```{r}
+obama_trump_tweets %>% 
+  gt_edges(screen_name, hashtags) %>% 
+  gt_graph() -> obama_net
+```
+
+
+
+```{r}
+visIgraph(obama_net)
+```
+
+
+
+
+
+
+```{r}
+clinton_trump_tweets <- get_timeline(c("realDonaldTrump", "HillaryClinton"), n = 1000)
+
+```
+
+
+
+Billings Gazette reporters
+
+@ferg_mike, @__matt_______, @samalwilson, @BGKord, @BGmhoffman, @DarrellEhrlick, @BGMayer, @bgSueOlp
+
+
+```{r}
+bg_reporters <- c("ferg_mike", "__matt_______", "samalwilson", "BGKord", "BGmhoffman", "DarrellEhrlick", "BGMayer", "bgSueOlp")
+
+bg_tweets <- get_timeline(bg_reporters, n = 500)
+```
+
+
+Look at their mentions.
+```{r}
+bg_tweets %>% 
+  gt_edges(screen_name, mentions_screen_name) %>% 
+  gt_graph() -> bg_mentions_net
+```
+
+
+
+```{r}
+visIgraph(bg_mentions_net)
+```
+
+
+
+```{r}
+degree(bg_mentions_net)
+```
+
+
+
+
+Look at the hastags they use.
+```{r}
+bg_tweets %>% 
+  gt_edges(screen_name, hashtags) %>% 
+  gt_graph() -> bg_hastags_net
+```
+
+
+
+```{r}
+visIgraph(bg_hastags_net)
+```
+
+
+
+
+
+
+
+
+Assignment
+Twitter names of Montana politicians

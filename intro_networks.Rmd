@@ -1,0 +1,295 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(igraph)
+library(rtweet)
+library(graphTweets)
+library(ggraph)
+library(tidygraph)
+library(visNetwork)
+```
+
+
+Hypothetical friends at school. Two data frames, first for giving names to each node, then for depicting friendships or edges.
+
+The names list is optional, but should have an ID number first, and then additional info such as names.
+```{r}
+names = read_csv(col_names = T,
+  "id, name
+  1, Crissy
+  2, Mickayla
+  3, Jen
+  4, Calley
+  5, Kristal
+  6, Daisy
+  7, Tigrin
+  8, Bella
+  9, Kylie
+  10, Taylor"
+  )
+names
+
+```
+
+```{r}
+friendships = read_csv(col_names = T,
+  "from, to
+  1, 10
+  2, 3
+  2, 5
+  2, 7
+  3, 5
+  3, 10
+  4, 9
+  5, 6
+  5, 7
+  5, 10
+  6, 8
+  7, 10")
+
+friendships
+```
+
+
+
+Create the network. 
+
+```{r}
+
+friend_network <- graph_from_data_frame(friendships)
+
+
+friend_network
+
+```
+
+
+But there are two problems we want to fix before we go on. 
+1. notice the arrows, like 1->10 and 2->3. That shows it's what is called a directed network. But these friendships are mutual, not one-way. We can change that with directed = F.  
+2. we haven't yet used the names, so the children are just identified as 1, 2, etc. We can add the names with vertices = names.
+
+Copy-paste the command above, but follow friendships in the parentheses with directed = F and vertices = names, separated by commas.
+
+```{r}
+friend_network <- graph_from_data_frame(friendships, directed = F, vertices = names)
+
+friend_network
+```
+
+
+
+Friendships are called "edges" in network terminology and in igraph. They are also sometimes called links or ties. Display them with the letter E for edges:
+
+```{r}
+E(friend_network)
+```
+
+You can count the number of edges by putting the network into ecount(). Do that below:
+
+```{r}
+ecount(friend_network)
+```
+
+
+
+The children in this example are the vertices. Display them with V(), with the network name in parentheses. Do that below:
+```{r}
+V(friend_network)
+
+```
+
+vcount() will count the number of vertices or children in this case. Do that below:
+
+```{r}
+vcount(friend_network)
+```
+
+One simple way to view the network is with an adjacency matrix, which prints a 10 x 10 (in our example) table with marks to indicate friendships. Use as_adjacency_matrix() on the network to show it. 
+```{r}
+as_adjacency_matrix(friend_network)
+```
+
+
+
+graph it with ggraph, which is based on ggplot. To display the vertices (or nodes) use geom_node_point(), and to display edges add geom_edge_link(). Click "run" a few times and you'll see it will give you slightly different graphs each time.
+
+```{r}
+ggraph(friend_network) + 
+  geom_node_point() +
+  geom_edge_link()
+```
+
+To make it look nicer, make a few changes:
+1. add layout = "with_kk" inside ggraph(), which uses the Kamada-Kawai method to generate the graph.  
+1. add alpah = .5 inside geom_edge_link(). It will make the lines a little transparent.
+2. add their names to the vertices with geom_node_text. repel = T makes sure they don't overlap.  
+3. add theme_graph() which removes the grey background and the labels on the x and y axis.
+
+```{r}
+ggraph(friend_network, layout = "with_kk") + 
+  geom_node_point() +
+  geom_edge_link(alpha = .5) +  # creates the lines, and makes them a little transparent
+  geom_node_text(aes(label = name), repel = TRUE) +  # puts the names on the points, "repels" them so they don't overlap
+  theme_graph()  #  removes the grey background
+
+```
+
+
+
+```{r}
+ggraph(friend_network, layout = "grid") + 
+  geom_edge_link(alpha = 0.5) + 
+  geom_node_text(aes(label = name)) +
+  theme_graph()
+```
+
+Here's a different type of graph, called "linear" because all the nodes are in a straight line. But notices that it doesn't work. Change geom_edge_link() to geom_edge_arc() and try it again.
+
+```{r}
+ggraph(friend_network, layout = "linear") + 
+  geom_edge_link(alpha = 0.5) + 
+  geom_node_text(aes(label = name)) +
+  theme_graph()
+```
+
+
+Try another, but use layout = "circle". You'll want to use the geom_edge_link() again rather than geom_edge_arc().
+
+```{r}
+ggraph(friend_network, layout = "circle") + 
+  geom_node_point() +
+  geom_edge_link(alpha = .5) +  # creates the lines, and makes them a little transparent
+  geom_node_text(aes(label = name), repel = TRUE) +  # puts the names on the points, "repels" them so they don't overlap
+  theme_graph()  #  removes the grey background
+
+```
+
+The package visNetwork will make an interactive graph. Run the following code and then pull the nodes around on the screen, and zoom in and out.
+```{r}
+visIgraph(friend_network)
+```
+
+This is kind of fun: add physics = T inside visIgraph() and see how the network changes when you manipulate it.
+```{r}
+visIgraph(friend_network, physics = T)
+```
+
+This is a small network, but when we look at larger ones it helps of the vertices (nodes) are smaller.
+```{r}
+V(friend_network)$size <- 10
+
+visIgraph(friend_network)
+
+```
+
+
+
+We also might set the width of the edges to their betweeneness.
+```{r}
+E(friend_network)$width <- edge_betweenness(friend_network)
+
+visIgraph(friend_network)
+
+
+```
+
+
+```{r}
+visIgraph(friend_network) %>% 
+  visIgraphLayout(layout = "layout_in_circle")
+```
+
+```{r}
+visIgraph(friend_network) %>% 
+  visIgraphLayout(layout = "layout_on_grid")
+```
+
+
+
+Enough fun, let's look at some properties of the network. The number of connections or edges each person has is called degree, and can be found using degree().
+
+
+```{r}
+degree(friend_network)
+```
+
+
+
+
+This is an important enough measure that we might create a new variable out of it and include it in the network. Use mutate to create a new variable called degree, and then show it, arranged with the highest degree at the top.
+
+```{r}
+names <- names %>%
+  mutate(degree = degree(friend_network))
+
+names %>% 
+  arrange(-degree)
+```
+
+This shows how many friends each child has.
+
+
+Now display a new ggraph, with the size of each node based on its degree. Put aes(size = names$degree) inside geom_node_point() in the ggraph call.
+
+```{r}
+ggraph(friend_network) + 
+  geom_node_point(aes(size = names$degree)) +
+  geom_edge_link(alpha = .3) +  
+  geom_node_text(aes(label = name), repel = TRUE) +  
+  theme_graph()  
+
+
+```
+
+
+
+
+
+```{r}
+
+closeness(friend_network)
+```
+
+
+
+
+
+```{r}
+edge_betweenness(friend_network)
+
+```
+
+
+
+```{r}
+friendships <- friendships %>% 
+  mutate(betweenness = edge_betweenness(friend_network))
+
+friendships %>% 
+  arrange(-betweenness)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
