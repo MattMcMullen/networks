@@ -5,272 +5,533 @@ output: html_notebook
 
 ```{r}
 library(tidyverse)
-library(igraph)
-library(rtweet)
-library(graphTweets)
-library(ggraph)
-library(tidygraph)
-library(visNetwork)
-```
-
-
-Hypothetical friends at school. Two data frames, first for giving names to each node, then for depicting friendships or edges.
-
-The names list is optional, but should have an ID number first, and then additional info such as names.
-```{r}
-names = read_csv(col_names = T,
-  "id, name
-  1, Crissy
-  2, Mickayla
-  3, Jen
-  4, Calley
-  5, Kristal
-  6, Daisy
-  7, Tigrin
-  8, Bella
-  9, Kylie
-  10, Taylor"
-  )
-names
-
-```
-
-```{r}
-friendships = read_csv(col_names = T,
-  "from, to
-  1, 10
-  2, 3
-  2, 5
-  2, 7
-  3, 5
-  3, 10
-  4, 9
-  5, 6
-  5, 7
-  5, 10
-  6, 8
-  7, 10")
-
-friendships
+library(igraph)                    # This is the package to analyze the network
+library(visNetwork)                # This package creates visualizations of the network
+library(DT)
+library(plotly)
 ```
 
 
 
-Create the network. 
+
+Network analysis data are often set up in two datasets: One for the individuals or nodes in the network, and one for the links or connections between them.
+
+There are two data files for this introductory exercise, one called terrorist_nodes.csv and the other called terrorist_links.csv.
+
+Terrorist network used in this Datacamp lesson on network analysis: https://www.datacamp.com/courses/network-science-in-r-a-tidy-approach
+
+
+I use nodes and links. igraph uses vertices and edges.
+
+Nodes, vertices
+Links, connections, edges
+
 
 ```{r}
+terrorist_nodes <- read_csv("terrorist_nodes.csv")
+terrorist_links <- read_csv("terrorist_links.csv")
+```
 
-friend_network <- graph_from_data_frame(friendships)
+Look at the data with datatable().
 
+```{r}
+terrorist_nodes %>% 
+  datatable()
 
-friend_network
-
+terrorist_links %>% 
+  datatable()
 ```
 
 
-But there are two problems we want to fix before we go on. 
-1. notice the arrows, like 1->10 and 2->3. That shows it's what is called a directed network. But these friendships are mutual, not one-way. We can change that with directed = F.  
-2. we haven't yet used the names, so the children are just identified as 1, 2, etc. We can add the names with vertices = names.
-
-Copy-paste the command above, but follow friendships in the parentheses with directed = F and vertices = names, separated by commas.
+Let's create a quick network diagram with visNetwork(). Put the nodes and then the links into the parenteses. We'll adjust it and make it look better later.
 
 ```{r}
-friend_network <- graph_from_data_frame(friendships, directed = F, vertices = names)
-
-friend_network
+visNetwork(terrorist_nodes, terrorist_links)
 ```
 
+In order to get statistics on the network, we put it into a format for the package igraph using graph_from_data_frame(). The most important part of the network is the list of links, so our terrorist_links goes first. Next, another name for 'nodes' is 'vertices', so we set vertices = terrorist_nodes. Finally, this is not a directed network - all the relationships here are considered to be two-way - so we set directed = F. 
 
-
-Friendships are called "edges" in network terminology and in igraph. They are also sometimes called links or ties. Display them with the letter E for edges:
 
 ```{r}
-E(friend_network)
-```
-
-You can count the number of edges by putting the network into ecount(). Do that below:
-
-```{r}
-ecount(friend_network)
-```
-
-
-
-The children in this example are the vertices. Display them with V(), with the network name in parentheses. Do that below:
-```{r}
-V(friend_network)
+terrorist_network <- graph_from_data_frame(terrorist_links, vertices = terrorist_nodes, directed = F)
 
 ```
 
-vcount() will count the number of vertices or children in this case. Do that below:
+We can display the network, but it's a little difficult to understand:
 
 ```{r}
-vcount(friend_network)
+terrorist_network
 ```
 
-One simple way to view the network is with an adjacency matrix, which prints a 10 x 10 (in our example) table with marks to indicate friendships. Use as_adjacency_matrix() on the network to show it. 
+*Properties of the network**
+
+We use igraph to pull different types of information out of the graph.
+
+To start, we can count the number of nodes in the network. igraph calls them vertices, so we count vertices by piping terrorist_network into vcount().
+
 ```{r}
-as_adjacency_matrix(friend_network)
+terrorist_network %>% 
+  vcount()
 ```
 
+That number should match the number of terrorists in terrorist_nodes.
 
 
-graph it with ggraph, which is based on ggplot. To display the vertices (or nodes) use geom_node_point(), and to display edges add geom_edge_link(). Click "run" a few times and you'll see it will give you slightly different graphs each time.
+Because links (or ties or connections) are called edges in igraph, count them by piping the network into ecount(). Do that below:
 
 ```{r}
-ggraph(friend_network) + 
-  geom_node_point() +
-  geom_edge_link()
+terrorist_network %>% 
+  ecount()
 ```
 
-To make it look nicer, make a few changes:
-1. add layout = "with_kk" inside ggraph(), which uses the Kamada-Kawai method to generate the graph.  
-1. add alpah = .5 inside geom_edge_link(). It will make the lines a little transparent.
-2. add their names to the vertices with geom_node_text. repel = T makes sure they don't overlap.  
-3. add theme_graph() which removes the grey background and the labels on the x and y axis.
+That number should match the number of rows in our terrorist_links list.
+
+
+
+
+
+
+*Density* is the number of connections divided by the number of potential connections. 
+
+For example, among 4 people, there are 6 potential friendships (1 & 2, 1 & 3, 1 & 4, 2 & 3, 2 & 4, and 3 & 4). But not all pairs will actually be friends. If there are 4 friendships among those 4 people, that is a network density of 4/6, or .67. A high network density indicates a close-knit group of people.
+
+You can get density in igraph by piping the network into edge_density(). Do that below:
 
 ```{r}
-ggraph(friend_network, layout = "with_kk") + 
-  geom_node_point() +
-  geom_edge_link(alpha = .5) +  # creates the lines, and makes them a little transparent
-  geom_node_text(aes(label = name), repel = TRUE) +  # puts the names on the points, "repels" them so they don't overlap
-  theme_graph()  #  removes the grey background
-
-```
-
-
-
-```{r}
-ggraph(friend_network, layout = "grid") + 
-  geom_edge_link(alpha = 0.5) + 
-  geom_node_text(aes(label = name)) +
-  theme_graph()
-```
-
-Here's a different type of graph, called "linear" because all the nodes are in a straight line. But notices that it doesn't work. Change geom_edge_link() to geom_edge_arc() and try it again.
-
-```{r}
-ggraph(friend_network, layout = "linear") + 
-  geom_edge_link(alpha = 0.5) + 
-  geom_node_text(aes(label = name)) +
-  theme_graph()
-```
-
-
-Try another, but use layout = "circle". You'll want to use the geom_edge_link() again rather than geom_edge_arc().
-
-```{r}
-ggraph(friend_network, layout = "circle") + 
-  geom_node_point() +
-  geom_edge_link(alpha = .5) +  # creates the lines, and makes them a little transparent
-  geom_node_text(aes(label = name), repel = TRUE) +  # puts the names on the points, "repels" them so they don't overlap
-  theme_graph()  #  removes the grey background
-
-```
-
-The package visNetwork will make an interactive graph. Run the following code and then pull the nodes around on the screen, and zoom in and out.
-```{r}
-visIgraph(friend_network)
-```
-
-This is kind of fun: add physics = T inside visIgraph() and see how the network changes when you manipulate it.
-```{r}
-visIgraph(friend_network, physics = T)
-```
-
-This is a small network, but when we look at larger ones it helps of the vertices (nodes) are smaller.
-```{r}
-V(friend_network)$size <- 10
-
-visIgraph(friend_network)
-
+terrorist_network %>% 
+  edge_density()
 ```
 
 
 
-We also might set the width of the edges to their betweeneness.
+*Distances* are the shortest paths between nodes. Even if two nodes are not directly connected, you can hop from one link to another to get there. Looking at the diagram, there are clearly lots of nodes that are just one or two hops apart, but some appear to be 5 or more apart.
+
 ```{r}
-E(friend_network)$width <- edge_betweenness(friend_network)
-
-visIgraph(friend_network)
-
-
+terrorist_network %>% 
+  distance()
 ```
 
 
+One oddity to note about the matrix is that it counts connections both ways: A connection from terrorist 1 to terrorist 2 is one connection, and that same connection from terrorist 2 to terrorist 1 is counted again. So there might be twice as many connections as you are expecting.
+
+
+To graph the connections we need to convert the matrix format into a dataframe that plotly can understand. The following will create a histogram of the distances of each possible pair of nodes:
+
 ```{r}
-visIgraph(friend_network) %>% 
+terrorist_network %>% 
+  distances() %>% 
+  as.vector() %>% 
+  as_tibble() %>%
+  plot_ly(x = ~value) %>% 
+  add_histogram()
+```
+
+We can see that most terrorists are connected by 2 or 3 hops, but some are connected by 1 and some by 6. There are 64 at 0: This is just the number of terrorists total, which are counted as connecting to themselves with 0 steps.
+
+
+We can boil all that down to one number with mean_distance(). Pipe the network into that function below:
+
+```{r}
+terrorist_network %>% 
+  mean_distance()
+```
+
+
+The number you get should be near the middle of the histogram above.
+
+
+
+The *diameter* of a network is the longest of the above distances. 
+
+Pipe the network into get_diameter() to get the specific path and nodes that contains the diameter; further pipe that into length() to get the number of hops required.
+
+```{r}
+terrorist_network %>% 
+  get_diameter()
+
+terrorist_network %>% 
+  get_diameter() %>% 
+  length()
+```
+
+
+
+**Visualization refinements**
+
+Let's go back to visNetwork and the diagram.
+
+
+First, I recommend always using a layout. You can set visNetwork layouts with visIgraphLayout(). Here's one example:
+
+```{r}
+visNetwork(terrorist_nodes, terrorist_links) %>% 
   visIgraphLayout(layout = "layout_in_circle")
 ```
 
+
+Also try the following: "layout_on_sphere" and "layout_on_grid".
+
+
+
+But let's stick with a standard one: layout_nicely. It refers to an algorithm to generate a readable layout.
+
+
 ```{r}
-visIgraph(friend_network) %>% 
-  visIgraphLayout(layout = "layout_on_grid")
+visNetwork(terrorist_nodes, terrorist_links) %>% 
+  visIgraphLayout(layout = "layout_nicely")
+```
+
+To see the names of the terrorists in the diagram, add a 'label' column to terrorist_nodes. It's just the same as the name column, but it has to be titled 'label' so it shows up in the diagram.
+
+```{r}
+terrorist_nodes <- terrorist_nodes %>% 
+  mutate(label = name)
+
+terrorist_nodes %>% 
+  datatable()
+```
+
+It seems redundant to have two columns with the same information, but we do that so we can see the names in the graph:
+
+```{r}
+visNetwork(terrorist_nodes, terrorist_links) %>% 
+  visIgraphLayout(layout = "layout_nicely")
+```
+
+Now we can see the names of the terrorists. Zoom in if you need to.
+
+
+You can also add a column in nodes called 'title', which will appear when you hover over the node. We can just mutate yet another column with the names of the terrorists, this time called 'title'. Do that below:
+
+```{r}
+terrorist_nodes <- terrorist_nodes %>% 
+  mutate(title = name)
 ```
 
 
-
-Enough fun, let's look at some properties of the network. The number of connections or edges each person has is called degree, and can be found using degree().
-
-
-```{r}
-degree(friend_network)
-```
+After creating the title column, go back up to the diagram and run it again. If you hover over a node, a the name should pop up for you.
 
 
 
 
-This is an important enough measure that we might create a new variable out of it and include it in the network. Use mutate to create a new variable called degree, and then show it, arranged with the highest degree at the top.
+Add a pipe and a new line with visOptions(highlightNearest = T). Now when you click on one terrorist, that terrorist and their contacts will be highlighted.
 
 ```{r}
-names <- names %>%
-  mutate(degree = degree(friend_network))
+visNetwork(terrorist_nodes, terrorist_links, main = "Network of Terrorists involved in the 2004 Madrid Bombing") %>% 
+  visIgraphLayout(layout = "layout_nicely") %>% 
+  visOptions(highlightNearest = T) 
 
-names %>% 
-  arrange(-degree)
-```
-
-This shows how many friends each child has.
-
-
-Now display a new ggraph, with the size of each node based on its degree. Put aes(size = names$degree) inside geom_node_point() in the ggraph call.
-
-```{r}
-ggraph(friend_network) + 
-  geom_node_point(aes(size = names$degree)) +
-  geom_edge_link(alpha = .3) +  
-  geom_node_text(aes(label = name), repel = TRUE) +  
-  theme_graph()  
-
-
-```
-
-
-
-
-
-```{r}
-
-closeness(friend_network)
-```
-
-
-
-
-
-```{r}
-edge_betweenness(friend_network)
 
 ```
 
 
+Add nodeIdSelection = T inside the parentheses of visOptions. You should get a drop-down menu with each terrorist.
 
 ```{r}
-friendships <- friendships %>% 
-  mutate(betweenness = edge_betweenness(friend_network))
+visNetwork(terrorist_nodes, terrorist_links, main = "Network of Terrorists involved in the 2004 Madrid Bombing") %>% 
+  visIgraphLayout(layout = "layout_nicely") %>% 
+  visOptions(highlightNearest = T, nodesIdSelection = T)
 
-friendships %>% 
-  arrange(-betweenness)
+```
+
+
+
+
+
+Finally, add a title.
+
+```{r}
+visNetwork(terrorist_nodes, 
+           terrorist_links, 
+           main = "Network of Terrorists involved in the 2004 Madrid Bombing") %>% 
+  visIgraphLayout(layout = "layout_nicely") %>% 
+  visOptions(highlightNearest = T, nodesIdSelection = T)
+
+
+
+```
+
+
+
+**More network properties**
+
+
+The number of links each person has is called *degree*, and can be found by piping terrorist_network into degree(). Do that below:
+
+
+```{r}
+terrorist_network %>% 
+  degree()
+```
+
+
+This is an important enough measure that we might create a new variable out of it and include it in the data. The following uses mutate() to create a new variable called degree, and then shows it in a table, arranged with the highest degree at the top.
+
+```{r}
+terrorist_nodes %>%
+  mutate(degree = degree(terrorist_network)) -> 
+  terrorist_nodes
+
+terrorist_nodes %>% 
+  arrange(-degree) %>% 
+  datatable()
+```
+
+This shows how many connections each terrorist has. Jamal Zougam was one of the first to be arrested after the bombing. He owned a mobile phone shop, which probably has something to do with the number of connections he had to the other terrorists.
+
+
+We can see the distribution of the degrees with a histogram. Create one with plotly below. Add nbinsx = inside of add_histogram(), and choose a number to show enough bins to be informative.
+
+```{r}
+terrorist_nodes %>% 
+  plot_ly(x = ~degree) %>% 
+  add_histogram(nbinsx = 25)
+```
+
+
+You can see that there are many terrorists with 10 or fewer connections, and just a few terrorists with more than 20 connections.
+
+
+If the node data has a column called 'value', the size of the nodes will be adjusted by that variable.
+
+Mutate a new column called value, and set value = degree.
+
+
+```{r}
+terrorist_nodes <- terrorist_nodes %>% 
+  mutate(value = degree)
+
+visNetwork(terrorist_nodes, terrorist_links, main = "Network of Terrorists involved in the 2004 Madrid Bombing") %>% 
+  visIgraphLayout(layout = "layout_nicely") %>% 
+  visOptions(highlightNearest = T, nodesIdSelection = T)
+
+```
+
+
+Another measure is *closeness*. It's different from degree, but it is a measure of how many paths each other node would have to take to get to that node. The higher the closeness, the easier to get to that node. There's a more precise mathematical definition, but that's the idea.
+
+Use closeness() to display the closeness of each terrorist in the network. Pipe terrorist_network into closeness().
+
+
+```{r}
+terrorist_network %>% 
+  closeness()
+```
+
+
+
+Create a new 'closeness' column in the terrorist_nodes data, and also create a new 'value' column set to closeness.
+
+```{r}
+terrorist_nodes <- terrorist_nodes %>% 
+  mutate(closeness = closeness(terrorist_network)) %>% 
+  mutate(value = closeness)
+
+terrorist_nodes %>% 
+  arrange(-closeness) %>% 
+  datatable()
+```
+
+Closeness and degree are both measures of the *centrality* of each terrorist in the network. They're pretty highly correlated - terrorists with high degree also have high closeness - but they're not exactly the same.
+
+Generate the visNetwork again. Now, since value has the closeness numbers, the sizes of the nodes will be based on that instead of degree.
+
+```{r}
+visNetwork(terrorist_nodes, terrorist_links, main = "Network of Terrorists involved in the 2004 Madrid Bombing") %>% 
+  visIgraphLayout(layout = "layout_nicely") %>% 
+  visOptions(highlightNearest = T, nodesIdSelection = T)
+```
+
+
+
+*Betweenness* in network analysis is a measure of the number of shortest paths that use a particular link. Each link has betweenness. Degree and closeness apply to nodes, betweenness applies to links.
+
+For example, in a city, there are some streets that are very commonly used because they are between important areas. Many people drive on Main St. in the Heights because it's one of just a few commonly-used roads between the Heights and the rest of Billings. We could say Main St. has high betweenness.
+
+Terrorists that are go-betweens for many other terrorists will have high betweenness, and are very important because, if those links can be disrupted, it will have a damaging effect on the communication in the network as a whole.
+
+People who study internet connections are interested in betweenness. If a cable that carries a lot of internet traffic - say, between the US and Europe - is disrupted, it could cause internet outages across the world.
+
+Pipe the terrorist_network into edge_betweenness() below:
+
+```{r}
+terrorist_network %>% 
+  edge_betweenness()
+
+```
+
+Create a new column that adds betweenness to the terrorist_links data. We're also going to add a column called 'value' here because visNetwork will adjust the size of each line based on the value column. Model your commands below after the closeness chunk above. Make sure you modify terrorist_links rather than terrorist_nodes. Also, create the table with descending values of betweenness.
+
+```{r}
+terrorist_links <- terrorist_links %>% 
+  mutate(betweenness = edge_betweenness(terrorist_network)) %>% 
+  mutate(value = betweenness)
+
+terrorist_links %>% 
+  arrange(-betweenness) %>% 
+  datatable()
+```
+
+
+
+Now look what happens to the lines when we create the network again with visNetwork:
+
+
+```{r}
+visNetwork(terrorist_nodes, terrorist_links, main = "Network of Terrorists involved in the 2004 Madrid Bombing") %>% 
+  visIgraphLayout(layout = "layout_nicely") %>% 
+  visOptions(highlightNearest = T, nodesIdSelection = T)
+```
+
+There should be one particularly thick line apparent in the network diagram. Who are the terrorists that form this important link?
+
+
+
+
+*Communities*
+
+Network analysis can identify groups of individuals that are similar or have many connections. This process is called community detection.
+
+One method is called infomap, and uses the infomap.community() function. Pipe the network into it below:
+
+```{r}
+terrorist_network %>% 
+  infomap.community()
+```
+
+To display the group that each terrorist belongs to, further pipe the above into membership().
+
+```{r}
+
+terrorist_network %>% 
+  infomap.community() %>% 
+  membership()
+
+```
+
+
+We can also mutate a new variable with each terrorists' group:
+
+```{r}
+terrorist_nodes <- terrorist_nodes %>% 
+  mutate(group = membership(infomap.community(terrorist_network)))
+
+terrorist_nodes %>% 
+  datatable()
+
+```
+
+
+Now when we create the graph again, the nodes will be colored by group membership.
+
+```{r}
+visNetwork(terrorist_nodes, terrorist_links, main = "Network of Terrorists involved in the 2004 Madrid Bombing") %>% 
+  visIgraphLayout(layout = "layout_nicely") %>% 
+  visOptions(highlightNearest = T, nodesIdSelection = T)
+
+```
+
+
+
+Finally, inside visOptions() add selectedBy = "group". That will allow you to select entire groups with the drop-down menu.
+
+```{r}
+visNetwork(terrorist_nodes, terrorist_links, main = "Network of Terrorists involved in the 2004 Madrid Bombing") %>% 
+  visOptions(selectedBy = "group", nodesIdSelection = T, highlightNearest = T)
+```
+
+
+
+Assignment.
+
+Choice - 9/11 terrorists or Game of Thrones. 
+
+Option 1: 9/11 terrorists assignment
+
+Distances, degree, betweenness, closeness
+
+Find communities with infomap.community().
+
+
+
+
+
+Option 2: If you like Game of Thrones or are tired of terrorists, I have a dataset from the third book in the Game of Thrones series called "Storm of Swords." The creators of the data found characters who appeared near each other in the text of the novel. (People have often applied network analysis to fictional worlds from movies and books, like Harry Potter or the Marvel Universe. Statisticians with too much free time, I guess.) 
+
+The data are a little different because, instead of id numbers, the id column has names, and the edge data also have names rather than numbers. That should not effect your analysis, and it's easier to read when you look at the data.
+
+
+In either case, do the following:
+
+1. Read in the data into links and nodes, and create the network in igraph with graph_from_data_frame().
+2. 
+
+
+
+
+
+
+Use the following lines to read in the data, and then conduct a network analysis.
+
+Add labels to the terrorist_nodes data.
+Mutate a new column
+
+Who was the most important terrorist, as measured by degree? Create a table of all the terrorists and their degree. Look up the name of the individual - what was his role in the bombings, according to subsequent investigations?
+
+
+What was the most important link in the network, as measured by betweenness? 
+
+
+got_nodes.csv
+got_links.csv
+book storm of swords, one of the GoT books.
+list of characters, linked if they appeared with 15 words of one another at least 5 times
+names but no ID numbers
+
+```{r}
+got_nodes <- read_csv("got_nodes.csv")
+got_links <- read_csv("got_links.csv")
+```
+
+```{r}
+got_net <- graph_from_data_frame(got_links, vertices = got_nodes, directed = F)
+
+```
+
+
+
+
+```{r}
+got_nodes <- got_nodes %>% 
+  mutate(label = id)
+
+got_nodes <- got_nodes %>% 
+  mutate(degree = degree(got_net)) %>% 
+  mutate(value = degree)
+```
+
+```{r}
+got_links <- got_links %>% 
+  mutate(betweenness = edge_betweenness(got_net)) %>% 
+  mutate(value = betweenness)
+
+
+```
+
+
+
+```{r}
+try <- infomap.community(got_net)
+
+got_nodes <- got_nodes %>% 
+  mutate(group = membership(try))
+
+```
+
+
+```{r}
+visNetwork(got_nodes, got_links, main = "Game of Thrones Storm of Swords Network") %>% 
+  visOptions(selectedBy = "group") 
 ```
 
 
@@ -280,16 +541,7 @@ friendships %>%
 
 
 
+```{r}
 
-
-
-
-
-
-
-
-
-
-
-
+```
 
