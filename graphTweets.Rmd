@@ -1,8 +1,9 @@
 ---
-title: "graphTweets"
+title: "Twitter networks"
 output: html_notebook
 ---
 
+Load required packages:
 
 ```{r}
 library(tidyverse)
@@ -15,425 +16,293 @@ library(graphTweets)            # This package turns twitter data into edge & no
 ```
 
 
-edges based on mentions, retweets, or hashtags 
-billings area, several individuals' timelines: obama/trump, montana politicans, gazette reporters, psychology tweeters
 
-
-
-Twitter is a social network that can be mapped and analyzed with igraph in R. It is possible to simply use rtweet to download tweets, and then orgranize the data to create a network, but it's time-consuming to organize the data into nodes and edges appropriate for network analysis. Instead, we can use a package called graphTweets to do the dirty work for us.
-
-Let's start with an example where we collect tweets with the hastag #MeToo.
-
-
-1. Collect tweets. You can use search_tweets() or get_timeline().
-2. Create the network with graphTweet's gt_edges() and gt_graph()
-3. Get the nodes and edges with as_data_frame().
-
-Then we can use visNetwork to create the graph with the node and edge data, as well as generate some statistics with network in igraph.
-
-
-Step 1: Collect tweets.
+This next chunk below is for authenticating rtweet so you can get tweets. You may not need to do this, because you may be authenticated from when we used rtweet previously. But if you do use this, be sure to either delete it or remove your passwords prior to saving, so no one else will see it.
 
 ```{r}
-metoo_tweets <- search_tweets("#MeToo", n = 500, include_rts = FALSE)
+token <- create_token(
+  app = "",
+  consumer_key = "",
+  consumer_secret = "",
+  access_token = "",
+  access_secret = "")
+
+get_token()        # this shows the token. make sure key is the same as consumer_key above
 ```
 
-You may want to look at the data again by clicking on 'metoo_tweets' in the Global Environment pane to familiarize yourself with the data that rtweet provides.
-
-There are a few ways that people might be connected in twitter. We'll focus on mentions, retweets, and hashtags. 
-
-Let's start with mentions: When one user mentions another user in a tweet, that's a connection.
-
-To use graphTweets, you need to get the edges of the network with gt_edges(), and provide the screen_name (the person) and then their mentions. To do that, use mentions_screen_name(), which will get other people that the first person mentioned. For example, if I'm @matt, and I tweet "@john Hi how are you," that's two nodes with one edge between them.
-
-The following will take our metoo_tweets, grab the edges, and create an igraph network of mentions that we're calling metoo_graph. Then it shows a part of the network.
 
 
+Twitter is a great example of a social network that we can examine with network analysis. There are several ways both to get tweets and to create networks. 
+
+1. Getting tweets: First, we'll use the rtweet package's search_tweets() to collect tweets to analyze. We can search for tweets about a topic or, as we'll do below, even search in a geographical region. But a second and better approach is to select a group of users and use get_timeline() to get the tweets from just those people we want.
+
+2. Creating the network: We could create our own node and edge data from the tweets, but there is a package called graphTweets that will do the dirty work for us. We give it the tweets, create the network, and then create the nodes and edges from the network. There are a variety of ways that people can connect on Twitter, and we can use any of them as edges: Retweets, mentions, replies, etc.  We'll focus on retweets and mentions.
+
+
+### Network of tweets in and around Billings
+
+Let's start with an example of getting tweets that were created in Billings. This will only work on people who have turned on their geolocation. The geocode = "45.80,-108.55,25mi" gets tweets that were created within 25 miles of the latitude and longitude center of Billings.
+
+```{r}
+bl_tweets <- search_tweets(geocode = "45.80,-108.55,25mi", n = 2000)
+
+```
 
 
 
+Create the network of retweets.
+
+The following long code chunk will create three data sets based on bl_tweets:
+1. bl_retweet_network, which is the igraph network we can use to get network statistics
+2. bl_retweet_nodes, which contains the people in the network
+3. bl_retweet_edges, which are the connections - in this case, retweets - between the people
 
 
 ```{r}
-metoo_graph <- metoo_tweets %>% 
-  gt_edges(screen_name, mentions_screen_name, text) %>% 
+# This creates the network with some commands from graphTweets
+# The variables in the parentheses of gt_edges() are used, so in this case we're using retweets
+# We're also keeping text of the tweets
+bl_retweet_network <- bl_tweets %>% 
+  gt_edges(screen_name, retweet_screen_name, text) %>% 
   gt_graph()
 
-metoo_graph
 
-```
+# This next line gets the nodes
+bl_retweet_nodes <- as_data_frame(bl_retweet_network, what = "vertices")
 
-
-
-
-
-We want to get the edges and nodes from the network.
-
-In the previous exercise introducing network analysis, we started with edges and nodes and then created the network. Now, we're going to go in the opposite direction: We will extract the nodes and edges from the network. We use as_data_frame() to do this.
-
-Let's get both the edges and the nodes from the network. Remember that igraph calls nodes "vertices".
-
-1. extract the nodes. It will have a 'name' column    
-2. add new columns for id, label, and title, all with the name in them, because those are used by visNetwork
-
-```{r}
-metoo_nodes <- as_data_frame(metoo_graph, what = "vertices")
-
-metoo_nodes <- metoo_nodes %>% 
-  mutate(id = name) %>% 
-  mutate(label = name) %>% 
-  mutate(title = name)
-
-metoo_nodes %>% 
-  datatable()
-
-```
-
-Getting edges is simpler: Just use as_data_frame(), specify the network, and set what = "edges".
-
-```{r}
-metoo_edges <- as_data_frame(metoo_graph, what = "edges")
-
-metoo_edges
-```
-
-
-This is a directed - or one-way - network, because one person is mentioning another, and it's not necessarily mutual. So we can add arrows to the edges.
-```{r}
-visNetwork(metoo_nodes, metoo_edges, main = "Network of #MeToo Tweets and Mentions") %>% 
-  visEdges(arrows = "to")
-```
-
-
-Add degree to the nodes as we did previously.
-
-```{r}
-metoo_nodes <- metoo_nodes %>% 
-  mutate(degree = degree(metoo_graph)) %>% 
-  mutate(value = degree)
-
-metoo_nodes %>% 
-  datatable()
-```
-
-
-
-```{r}
-visNetwork(metoo_nodes, metoo_edges, main = "Network of #MeToo Tweets and Mentions") %>% 
-  visEdges(arrows = "to")
-```
-
-
-
-
-
-
-
-
-```{r}
-tweets %>% 
-  gt_edges(screen_name, mentions_screen_name, created_at) %>%    #created_at is not necessary, but just adds info 
-  gt_collect() -> edges
-
-edges
-
-
-
-```
-
-
-
-
-
-
-
-
-
-
-
-```{r}
-
-tweets <- search_tweets("#MeToo", n = 1000, include_rts = FALSE, lang = "en")
-```
-
-
-
-```{r}
-net <- tweets %>% 
-  gt_edges(screen_name, hashtags) %>% 
-  gt_nodes() %>% 
-  gt_collect()
-
-
-tweets %>% 
-  gt_edges(screen_name, mentions_screen_name) %>% 
-  gt_graph() -> net
-
-net
-
-```
-
-
-
-
-
-
-```{r}
-V(net)
-E(net)
-```
-
-
-
-Rather than getting the network of mentions, we could get a network of retweets.
-
-This gets a network of retweets.
-```{r}
-metoo_retweets <- search_tweets("#MeToo filter:retweets", n = 500, include_rts = TRUE, lang = "en")
-
-```
-
-Let's create the network and extract the nodes and edges as above.
-
-
-```{r}
-metoo_retweets %>% 
-  gt_edges(screen_name, retweet_screen_name, text) %>% 
-  gt_graph() -> metoo_retweet_network
-
-metoo_retweet_nodes <- as_data_frame(metoo_retweet_network, what = "vertices")
-
-metoo_retweet_nodes <- metoo_retweet_nodes %>% 
+# This adds some additional info to the nodes, so we get the names on hover
+# and the size of the node is based on its degree, etc.
+bl_retweet_nodes <- bl_retweet_nodes %>% 
   mutate(id = name) %>% 
   mutate(label = name) %>% 
   mutate(title = name) %>% 
-  mutate(degree = degree(metoo_retweet_network)) %>% 
+  mutate(degree = degree(bl_retweet_network)) %>% 
   mutate(value = degree)
 
-metoo_retweet_nodes %>% 
-  datatable()
+# This gets the edges, similar to how we got the nodes above
+bl_retweet_edges <- as_data_frame(bl_retweet_network, what = "edges")
 
+# This puts the text of the tweet itself into the edge
+# so when you hover over a line in the diagram it will show the tweet
+bl_retweet_edges <- bl_retweet_edges %>% 
+  mutate(title = text)
 
-metoo_retweet_edges <- as_data_frame(metoo_retweet_network, what = "edges")
-
-metoo_retweet_edges %>% 
-  datatable()
-```
-
-
-
-
-```{r}
-visNetwork(metoo_retweet_nodes, metoo_retweet_edges, main = "Retweets with #MeToo") %>% 
+# Creates the diagram
+visNetwork(bl_retweet_nodes, bl_retweet_edges, main = "Retweet network around Billings") %>% 
+  visIgraphLayout(layout = "layout_nicely") %>% 
   visEdges(arrows = "to")
 ```
 
 
-
-
-
-
-Tweets near Billings
+The following will get the number of vertices (nodes) in the network.
 
 ```{r}
-bl_tweets <- search_tweets(geocode = "45.80,-108.55,20mi", n = 500)
-
+bl_retweet_network %>% 
+  vcount()
 ```
 
-network of mentions
+Find the number of edges (links) in the network using ecount:
+
+
+
+
+
+
+
+
+
+Starting with bl_retweet_edges, select only the from (the person who retweeted another), the to (the person who was retweeted), and the text of the tweet, and create a data table of the retweets below:
+
+
+
+
+
+
+
+
+
+
+Get the density of the network with edge_density. The number will likely be very small because most of these people aren't connected to one another:
+
+
+
+
+
+
+
+
+
+### Getting a network of specific users
+
+One problem with the approach above is that most of the users are disconnected from one another. They happen to be in the same general location, but they don't necessarily know or follow one another on twitter, so we have a very loosely connected network with very few connections.
+
+A better approach is to find a group of individuals that you know are connected in some way. 
+
+I went to the Billings Gazette twitter page and got the twitter names of several of its reporters. The following code puts them into an object called bg_reporters, and then it uses get_timeline() to get the last 500 tweets from each of those reporters.
 
 ```{r}
-bl_tweets %>% 
-  gt_edges(screen_name, mentions_screen_name, text) %>% 
-  gt_graph() -> bl_tweets_network
-
-bl_tweets_nodes <- as_data_frame(bl_tweets_network, what = "vertices")
-
-bl_tweets_nodes <- bl_tweets_nodes %>% 
-  mutate(id = name) %>% 
-  mutate(label = name) %>% 
-  mutate(title = name) %>% 
-  mutate(degree = degree(bl_tweets_network)) %>% 
-  mutate(value = degree)
-
-bl_tweets_nodes %>% 
-  datatable()
-
-
-bl_tweets_edges <- as_data_frame(bl_tweets_network, what = "edges")
-
-bl_tweets_edges %>% 
-  datatable()
-```
-
-
-```{r}
-visNetwork(bl_tweets_nodes, bl_tweets_edges, main = "Tweets around Billings") %>% 
-  visEdges(arrows = "to")
-  
-  
-```
-
-
-
-
-
-You also might look at a few individuals' tweets and get the network surrounding them.
-
-Some prolific Psychology tweeters that I got from a list:
-Susan K. Whitbourne
-https://twitter.com/swhitbo
-
-Art Markman
-http://twitter.com/abmarkman
-
-Professor Bob: Psychology and Ethics Professor
-https://twitter.com/psychoBOBlogy
-
-Heidi Reeder
-https://twitter.com/heidireeder
-
-Vaughan Bell
-https://twitter.com/vaughanbell
-
-
-
-```{r}
-psych_tweeters <- c("swhitbo", "abmarkman", "psychoBOBlogy", "heidireeder", "vaughanbell")
-
-```
-
-
-We use get_timelines() to get the tweets of these individuals. We can just use the variable name psych_tweeters and it will get their tweets, up to the n that we provide.
-
-```{r}
-psych_tweets <- get_timelines(psych_tweeters, n = 1000)
-
-```
-
-
-Now convert it to a network, and then get the nodes and edges as we've done before. 
-But let's do something a little different: Let's look at the hashtags they use, rather than mentions or retweets. If they use any of the same hashtags, they'll be linked in the network.
-
-```{r}
-psych_tweets %>% 
-  gt_edges(screen_name, hashtags, text) %>% 
-  gt_graph() -> psych_tweets_network
-
-psych_tweets_nodes <- as_data_frame(psych_tweets_network, what = "vertices")
-
-psych_tweets_nodes <- psych_tweets_nodes %>% 
-  mutate(id = name) %>% 
-  mutate(label = name) %>% 
-  mutate(title = name) %>% 
-  mutate(degree = degree(psych_tweets_network)) %>% 
-  mutate(value = degree)
-
-psych_tweets_nodes %>% 
-  datatable()
-
-
-psych_tweets_edges <- as_data_frame(psych_tweets_network, what = "edges")
-
-psych_tweets_edges %>% 
-  datatable()
-```
-
-
-
-```{r}
-visNetwork(psych_tweets_nodes, psych_tweets_edges, main = "Psychology Retweets") %>% 
-  visEdges(arrows = "to") %>% 
-  visOptions(highlightNearest = T) %>% 
-  visIgraphLayout() 
-```
-
-
-
-
-
-
-
-
-```{r}
-obama_tweets <- get_timeline("BarackObama", n = 1000)
-```
-
-Now make the igraph object, looking at who he mentions in his tweets:
-
-
-```{r}
-obama_trump_tweets %>% 
-  gt_edges(screen_name, hashtags) %>% 
-  gt_graph() -> obama_net
-```
-
-
-
-```{r}
-visIgraph(obama_net)
-```
-
-
-
-
-
-
-```{r}
-clinton_trump_tweets <- get_timeline(c("realDonaldTrump", "HillaryClinton"), n = 1000)
-
-```
-
-
-
-Billings Gazette reporters
-
-@ferg_mike, @__matt_______, @samalwilson, @BGKord, @BGmhoffman, @DarrellEhrlick, @BGMayer, @bgSueOlp
-
-
-```{r}
-bg_reporters <- c("ferg_mike", "__matt_______", "samalwilson", "BGKord", "BGmhoffman", "DarrellEhrlick", "BGMayer", "bgSueOlp")
+bg_reporters <- c("RobRogersBG", 
+                  "samalwilson", 
+                  "BGKord", 
+                  "BGmhoffman", 
+                  "DarrellEhrlick", 
+                  "BGMayer", 
+                  "bgSueOlp", 
+                  "hollykmichels", 
+                  "kscherting", 
+                  "TomLutey", 
+                  "PhoebeTollefson")
 
 bg_tweets <- get_timeline(bg_reporters, n = 500)
 ```
 
 
-Look at their mentions.
+In addition to selecting users and using get_timeline() to collect tweets, there are two other differences in how we're going to approach this.
+
+1. In the code below, notice that we're using mentions_screen_name in the gt_edges() function rather than retweet_screen_name as we did above. This is just a different type of interaction in twitter that we can use to create the network.
+
+2. Also notice that in the first paragraph this line appears: filter(mentions_screen_name %in% bg_reporters). That makes sure that any mentions of people outside the network of Gazette reporters that we're interested in are filtered out. We want to focus only on people in our group of reporters (I love the %in% function in R!).
+
+
 ```{r}
-bg_tweets %>% 
-  gt_edges(screen_name, mentions_screen_name) %>% 
-  gt_graph() -> bg_mentions_net
+
+# create network, including only members of our group
+bg_mentions_network <- bg_tweets %>% 
+  filter(mentions_screen_name %in% bg_reporters) %>% 
+  gt_edges(screen_name, mentions_screen_name, text) %>% 
+  gt_graph
+
+
+#get nodes
+bg_mentions_nodes <- as_data_frame(bg_mentions_network, what = "vertices")
+
+
+# get edges
+bg_mentions_edges <- as_data_frame(bg_mentions_network, what = "edges")
+
+
+# add info to nodes
+bg_mentions_nodes <- bg_mentions_nodes %>% 
+  mutate(id = name) %>% 
+  mutate(label = name) %>% 
+  mutate(title = name) %>% 
+  mutate(degree = degree(bg_mentions_network)) %>% 
+  mutate(value = degree)
+
+# add info to edges
+bg_mentions_edges <- bg_mentions_edges %>% 
+  mutate(title = text)
+
+
+# create the network diagram
+visNetwork(bg_mentions_nodes, 
+           bg_mentions_edges,
+           main = "Billings Gazette Reporters Twitter Mentions Network") %>% 
+  visIgraphLayout(layout = "layout_nicely") %>% 
+  visEdges(arrows = "to")
+
 ```
 
 
 
+Above we got the vcount, ecount, and edge_density. Here, let's get the diameter length of the network. If you need to, go back to the previous assignment to see how to get that:
+
+
+
+
+
+
+
+
+
+
+
+
+Finally, starting with bg_mentions_nodes, use select() to only look at the name and degree of the reporter, and make a data table of them so we can see who has the most and least connections with other reporters. 
+
+
+
+
+
+
+
+
+### Twitter lists
+
+Above, we manually created a group of people to examine. That can get really tedious, and typos are a big possibility, especially if the group is large.
+
+One alternative is to use a twitter list. These are lists of users that anyone can put together, and we can access them with rtweet. People make lists of celebrities, athletes, their own friends, people who work at the same company, and so on.
+
+One group of lists comes from TwitterGov. Here are a few of the government lists they keep: "us-cabinet" (n = 41), "us-governors" (n = 50), "world-leaders" (n = 107), "us-senate" (n = 180). The senate list has 180 even though there are 100 senators because it includes personal accounts of the senators as well as their official senate accounts.
+
+The following code gets the list of US cabinet members, which includes people in the government like Secretary of State, Education, Energy, etc.
+
 ```{r}
-visIgraph(bg_mentions_net)
+cabinet <- lists_members(slug = "us-cabinet", owner_user = "TwitterGov")
+
+cabinet_tweets <- get_timeline(cabinet$screen_name, n = 300)
+
+```
+
+
+```{r}
+# This creates the network with some commands from graphTweets
+# The variables in the parentheses of gt_edges() are used, so in this case we're using retweets
+cabinet_retweets_network <- cabinet_tweets %>% 
+  filter(retweet_screen_name %in% cabinet$screen_name) %>%     # <- This is a new line and important.
+  gt_edges(screen_name, retweet_screen_name, text) %>%             # It only keep retweets of other cabinet members
+  gt_graph()
+
+
+# This next line gets the nodes
+cabinet_retweets_nodes <- as_data_frame(cabinet_retweets_network, what = "vertices")
+
+# This adds some additional info to the nodes, so we get the names on hover
+# and the size of the node is based on its degree, etc.
+cabinet_retweets_nodes <- cabinet_retweets_nodes %>% 
+  mutate(id = name) %>% 
+  mutate(label = name) %>% 
+  mutate(title = name) %>% 
+  mutate(degree = degree(cabinet_retweets_network)) %>% 
+  mutate(value = degree)
+
+# This gets the edges, similar to how we got the nodes above
+cabinet_retweets_edges <- as_data_frame(cabinet_retweets_network, what = "edges")
+
+# This puts the text of the tweet itself into the edge
+# so when you hover over a line in the diagram it will show the tweet
+cabinet_retweets_edges <- cabinet_retweets_edges %>% 
+  mutate(title = text)
+
+# Creates the diagram
+visNetwork(cabinet_retweets_nodes, cabinet_retweets_edges, main = "US cabinet officials retweet network") %>% 
+  visIgraphLayout(layout = "layout_nicely") %>% 
+  visEdges(arrows = "to")
+```
+
+
+
+Now let's find communities within the network and display them in the diagram.
+
+```{r}
+cabinet_retweets_nodes <- cabinet_retweets_nodes %>% 
+  mutate(group = membership(infomap.community(cabinet_retweets_network)))
+
+visNetwork(cabinet_retweets_nodes, cabinet_retweets_edges, main = "US cabinet officials retweet network") %>% 
+  visIgraphLayout(layout = "layout_nicely") %>% 
+  visEdges(arrows = "to") %>%   
+  visOptions(highlightNearest = T, nodesIdSelection = T, selectedBy = "group")
+
+
 ```
 
 
 
 
+### Assigment
 
-Look at the hastags they use.
-```{r}
-bg_tweets %>% 
-  gt_edges(screen_name, hashtags) %>% 
-  gt_graph() -> bg_hastags_net
-```
-
-
-
-```{r}
-visIgraph(bg_hastags_net)
-```
-
-
-
-
-
-
-
-
-Assignment
-Twitter names of Montana politicians
+1. Use the us-senate list to get the last 200 tweets from US senators.  
+2. Create a network of retweets.  
+3. Get a count of nodes and edges, and get the density of the network.  
+4. Create a data table of the senators, showing only their names and degree.  
+5. Find communities and make a network diagram showing the communities. (You may make two diagrams, one with the communities and one without.)

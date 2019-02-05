@@ -1,5 +1,5 @@
 ---
-title: "R Notebook"
+title: "Introduction to Network Analysis"
 output: html_notebook
 ---
 
@@ -466,7 +466,7 @@ Assignment. You have a choice for this assignment. You can do an analysis of the
 Option 1: Sept. 11 terrorists. The data are in Sept11_nodes.csv and Sept11_links.csv.
 
 
-Option 2:  I have a dataset from the third book in the Game of Thrones series called "Storm of Swords." The creators of the data found characters who appeared near each other in the text of the novel. (People have often applied network analysis to fictional worlds from movies and books, like Harry Potter or the Marvel Universe. Statisticians with too much free time, I guess.) The data are in the files got_nodes.csv and got_links.csv. The data are a little different because, instead of id numbers, the id column has names, and the edge data also have names rather than numbers. That should not effect your analysis, and it's easier to read when you look at the data.
+Option 2:  I have a dataset from the third book in the Game of Thrones series called "Storm of Swords." The creators of the data found characters who appeared near each other in the text of the novel. (People have often applied network analysis to fictional worlds from movies and books, like Harry Potter or the Marvel Universe. Statisticians with too much free time, I guess.) The data are in the files got_nodes.csv and got_links.csv. The data are a little different because, instead of id numbers, the id column has names, and the edge data also have names rather than numbers. That should not effect your analysis, and it's easier to read when you look at the data. (You might also notice that I have HP_nodes and HP_links, which are from Harry Potter. If you really wanted to, you could use those data instead.)
 
 
 In either case, do the following:
